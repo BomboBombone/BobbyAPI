@@ -1,4 +1,5 @@
 import cgi
+import os
 
 from AI import chatbot
 import http.server  # Our http server handler for http requests
@@ -35,8 +36,10 @@ class ChatBotAIServer(http.server.SimpleHTTPRequestHandler):
             request_type = request_type.replace('/api', '')
         queries = []
         name = 'Bobby'
-        chat_id = 0
         statement = 'Hi'
+        chat_id = 0
+        server_id = 0
+        prev_statement = 'Hello'
         if '?' in request_type:
             queries = request_type.split('?')[1].split('&')
             request_type = request_type.split('?')[0]
@@ -54,28 +57,74 @@ class ChatBotAIServer(http.server.SimpleHTTPRequestHandler):
             try:
                 length = get_content_length(self.headers.as_string().split('\n'))
                 payload = json.loads(self.rfile.read(int(length)))
-                chat_id = payload["chat_id"]
+                chat_id = int(payload["chat_id"])
                 statement = payload["text"]
+                prev_statement = payload["prev_text"]
             except Exception as ex:
-                pass
+                try:
+                    server_id = int(payload["server_id"])
+                except:
+                    pass
 
         if request_type.startswith('/chat'):
-            statement = urllib.parse.unquote(statement)
-            res = chatbot.bot.get_response(statement)
-            if res is None:
-                self.send_error(501, 'Invalid text')
+            if chat_id:
+                statement = urllib.parse.unquote(statement)
+                prev_statement = urllib.parse.unquote(prev_statement)
+                bot = chatbot.get_bot_from_ID(chat_id)
+                if bot is None:
+                    self.send_error(404)
+                    return
+                if prev_statement != "Hello":
+                    try:
+                        bot.train(statement, prev_statement)
+                        self.send_response(204)
+                        self.send_header('Content-type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(bytes('', 'utf-8'))
+                    except:
+                        self.send_error(500)
+                else:
+                    res = bot.get_response(statement)
+                    if res is None:
+                        self.send_error(501, 'Invalid text')
+                    else:
+                        self.send_response(200)
+                        self.send_header('Content-type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(bytes(res.text, 'utf-8'))
             else:
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(bytes(res.text, 'utf-8'))
+                if server_id:
+                    bot = chatbot.get_bot_from_ID(server_id)
+                    if bot is None:
+                        bot = chatbot.chatbot(server_id)
+                    response = '{"chat_id":' + str(bot.ID) + '}'
+                    self.send_response(201)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(bytes(response, 'utf-8'))
+
 
 def main():
+    import pathlib
+
+    cur_path = pathlib.Path(__file__).parent.absolute()
+
+    for file in os.listdir(cur_path):
+        if file.endswith('.db') and file != 'database.db':
+            chatbot.chatbot(int(file.split('.')[0]))
+            print('Loaded chats for server: ' + file.split('.')[0])
+    #    if file.endswith('.db-shm') and file != 'database.db-shm':
+    #        os.remove(file)
+    #        print('Deleted unused database: ' + file)
+    #    if file.endswith('.db-wal') and file != 'database.db-wal':
+    #        os.remove(file)
+    #        print('Deleted unused database: ' + file)
     Handler = ChatBotAIServer
 
     with socketserver.TCPServer(("", PORT), Handler) as httpd:
         print("Http Server Serving at port", PORT)
         httpd.serve_forever()
+
 
 if __name__ == '__main__':
     main()
