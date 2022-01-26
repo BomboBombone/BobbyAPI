@@ -84,18 +84,19 @@ class ChatBotAIServer(http.server.SimpleHTTPRequestHandler):
                     try:
                         if int(os.path.getsize(str(chat_id) + '.db')) < 3000000:
                             if default:
-                                chatbot.trainer.train([prev_statement, statement])
-                                print('Trained for default database')
+
                                 self.send_response(205)
                                 self.send_header('Content-type', 'application/json')
                                 self.end_headers()
                                 self.wfile.write(bytes('', 'utf-8'))
+                                chatbot.trainer.train([prev_statement, statement])
+                                print('Trained for default database')
                             else:
-                                bot.train(statement, prev_statement)
                                 self.send_response(204)
                                 self.send_header('Content-type', 'application/json')
                                 self.end_headers()
                                 self.wfile.write(bytes('', 'utf-8'))
+                                bot.train(statement, prev_statement)
                     except:
                         self.send_error(500)
                 else:
