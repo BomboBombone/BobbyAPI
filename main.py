@@ -39,6 +39,7 @@ class ChatBotAIServer(http.server.SimpleHTTPRequestHandler):
         statement = 'Hi'
         chat_id = 0
         server_id = 0
+        default = 0
         prev_statement = 'Hello'
         if '?' in request_type:
             queries = request_type.split('?')[1].split('&')
@@ -57,6 +58,11 @@ class ChatBotAIServer(http.server.SimpleHTTPRequestHandler):
             try:
                 length = get_content_length(self.headers.as_string().split('\n'))
                 payload = json.loads(self.rfile.read(int(length)))
+                default = int(payload["default"])
+            except:
+                pass
+            try:
+
                 chat_id = int(payload["chat_id"])
                 statement = payload["text"]
                 prev_statement = payload["prev_text"]
@@ -76,11 +82,20 @@ class ChatBotAIServer(http.server.SimpleHTTPRequestHandler):
                     return
                 if prev_statement != "Hello":
                     try:
-                        bot.train(statement, prev_statement)
-                        self.send_response(204)
-                        self.send_header('Content-type', 'application/json')
-                        self.end_headers()
-                        self.wfile.write(bytes('', 'utf-8'))
+                        if int(os.path.getsize(str(chat_id) + '.db')) < 3000000:
+                            if default:
+                                chatbot.trainer.train([prev_statement, statement])
+                                print('Trained for default database')
+                                self.send_response(205)
+                                self.send_header('Content-type', 'application/json')
+                                self.end_headers()
+                                self.wfile.write(bytes('', 'utf-8'))
+                            else:
+                                bot.train(statement, prev_statement)
+                                self.send_response(204)
+                                self.send_header('Content-type', 'application/json')
+                                self.end_headers()
+                                self.wfile.write(bytes('', 'utf-8'))
                     except:
                         self.send_error(500)
                 else:

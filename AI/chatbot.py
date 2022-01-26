@@ -20,7 +20,7 @@ bot = ChatBot(
 )
 
 #trainer = ChatterBotCorpusTrainer(bot)
-
+trainer = ListTrainer(bot)
 current_conversations = {}
 
 
@@ -52,6 +52,9 @@ class chatbot:
             database_uri=f'sqlite:///{self.ID}.db',
             logic_adapters=[
                 "chatterbot.logic.BestMatch"
+            ],
+            filters=[
+                "chatterbot.filters.RepetitiveResponseFilter"
             ],
             read_only=True
         )
